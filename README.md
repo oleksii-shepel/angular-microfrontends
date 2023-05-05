@@ -5,6 +5,7 @@
 cd shared
 npm install
 npm run build
+```
 
 ```sh
 # Second terminal tab
