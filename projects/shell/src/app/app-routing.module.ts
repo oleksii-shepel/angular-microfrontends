@@ -1,6 +1,6 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
-import { NavbarModule } from 'projects/navbar/src/lib/app.module';
+import { NavbarModule } from '@navbar';
 
 const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'store' },
