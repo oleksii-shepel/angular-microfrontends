@@ -8,47 +8,47 @@ This repository shows you how to set up micro frontends using Webpack 5 and Modu
 * Angular CLI 16
 * GitHub account
 
-## Cross-MFE Communication & Limitations
+## Cross-MFE Communication
 
-This project includes a shared `@shared` library consumed by all microfrontends via Module Federation. We explored several approaches for cross-MFE state synchronization. Below is a summary of what was implemented, what was rejected, and the hard constraints that apply to **all** browser-based cross-tab communication.
+Basket state is synchronized across microfrontends using **`localStorage`**.
 
-### Approaches Explored
+### Why `localStorage`
 
-| Approach | Status | How it works |
-|----------|--------|--------------|
-| `CustomEvent` (window) | Replaced | String-based pub/sub using `window.dispatchEvent` / `window.addEventListener`. Works across separately bootstrapped Angular apps because `window` is the only true global. |
-| `BroadcastChannel` | Replaced | Typed `Channel<T>` abstraction over the `BroadcastChannel` API. Cleaner than string events, designed for cross-context messaging. |
-| `SharedWorker` | **Current** | A `SharedWorker` holds basket state in memory. Any tab connects and immediately receives the current array. Fallback to in-memory `BehaviorSubject` when `SharedWorker` is unavailable (e.g. Safari/iOS). |
+We explored three in-memory messaging approaches before settling on `localStorage`:
 
-### Fundamental Limitations
+| Approach | Status | Why it was rejected |
+|----------|--------|---------------------|
+| `CustomEvent` (window) | Abandoned | Ephemeral — messages are lost if the receiver tab is not open. |
+| `BroadcastChannel` | Abandoned | Ephemeral — same problem: no message queueing, state lost when all tabs close. |
+| `SharedWorker` | Abandoned | Ephemeral + same-origin only. Also unsupported in Safari/iOS. |
 
-All three approaches above share the same hard constraints because they are **in-memory messaging** mechanisms:
+All three are **in-memory** mechanisms. The state lives only as long as something is holding it in RAM. If every tab is closed, the state is gone. Only persistent storage solves this.
 
-1. **Ephemeral state** — If **all** tabs are closed, the state is lost. A new tab opened later starts from empty state because there is no persistent store.
-2. **Same-origin only** — `SharedWorker` and `BroadcastChannel` only work between browsing contexts of the **same origin** (same protocol + host + port). In this project, Store runs on `:4202` and Basket on `:4203`. When opened directly on their own ports, they **cannot** share a worker or channel. They **can** share state only when both are loaded through Shell (`:4200`).
-3. **No message queueing** — Messages are delivered only to listeners that are alive at the moment of sending. If Basket is not yet open when Store sends an update, that update is lost forever.
+### How it works
 
-### What This Means in Practice
+`BasketService` (in `@shared`) uses `localStorage` as the single source of truth:
 
-| Scenario | Does basket sync work? | Why |
-|----------|----------------------|-----|
-| Store & Basket both open in Shell tab | ✅ Yes | Same origin, same runtime, SharedWorker is shared. |
-| Store tab open, then Basket tab opened on same origin | ✅ Yes | SharedWorker persists as long as at least one tab is open; new tab connects and gets current state. |
-| Store on `:4202`, Basket on `:4203`, both open | ❌ No | Different origins. Each gets its own worker instance. |
-| Store adds items, **closes**, then Basket opens | ❌ No | Worker died when the last tab closed. State is gone. |
-| Safari / iOS | ⚠️ Partial | Falls back to in-memory `BehaviorSubject`. Works inside one app, no cross-tab sync. |
+1. **Persist** — `addToBasket()` writes the updated array to `localStorage`
+2. **Notify same tab** — A `BehaviorSubject` emits the change immediately for reactive UI updates
+3. **Notify other tabs** — The `storage` event fires in other tabs when `localStorage` changes, so they re-read and update their UI
+4. **New tab** — On initialization, `BasketService` reads the current basket from `localStorage`, so a freshly opened Basket tab sees the items immediately
 
-### If You Need Persistent Cross-Tab State
+```
+Store MFE          localStorage          Basket MFE
+   |                    |                     |
+   |-- addToBasket() -->|                     |
+   |-- localStorage ---->|                     |
+   |                    |-- storage event --->|
+   |                    |                     |-- loadFromStorage()
+   |                    |                     |-- render basket
+```
 
-To survive tab closures and work across origins, you must leave the browser's memory sandbox:
+### Limitations
 
-| Solution | Survives tab close? | Cross-origin? | Notes |
-|----------|-------------------|---------------|-------|
-| `localStorage` | ✅ Yes | ❌ Same-origin only | 5–10 MB limit. Synchronous (blocks main thread). `storage` event notifies other tabs. |
-| `IndexedDB` | ✅ Yes | ❌ Same-origin only | Async, large quota, structured data. Best client-side option for complex state. |
-| **Backend API** | ✅ Yes | ✅ Yes | The only solution that works across devices and survives browser restarts. |
-
-**Recommendation:** Use `localStorage` or `IndexedDB` for client-only persistence, combined with `BroadcastChannel` for instant live updates. For production, persist basket state to a backend.
+- **Same-origin only** — `localStorage` is scoped to the origin (`protocol + host + port`). Store on `:4202` and Basket on `:4203` cannot share `localStorage`. They **can** share state only when both are loaded through Shell (`:4200`).
+- **5–10 MB limit** — `localStorage` is not suitable for large or complex data.
+- **Synchronous API** — `localStorage` read/write blocks the main thread.
+- **No cross-device sync** — Closing the browser entirely and reopening on another device won't restore the basket. For that, a backend API is required.
 
 ## Getting Started
 
