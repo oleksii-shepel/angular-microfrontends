@@ -23,7 +23,7 @@
       "@navbar": [
         "projects/navbar/src/public-api.ts",
         "dist/navbar"
-      ],
+      ]
     },
     "target": "es2022",
     "module": "es2022",
