@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "../../dist/out-tsc/store",
+    "outDir": "../../dist/microfrontends/store",
     "types": [],
     "target": "es2022"
   },

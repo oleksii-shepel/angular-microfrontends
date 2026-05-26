@@ -2,6 +2,7 @@
   "compileOnSave": false,
   "compilerOptions": {
     "rootDir": ".",
+    "outDir": "./dist/microfrontends",
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "noImplicitOverride": true,
@@ -15,12 +16,16 @@
     "importHelpers": true,
     "paths": {
       "@shared": [
-        "./projects/shared/src/public-api.ts",
-        "./dist/shared"
+        "./projects/shared/src/public-api.ts"
+      ],
+      "@shared/*": [
+        "./projects/shared/src/*"
       ],
       "@navbar": [
-        "./projects/navbar/src/public-api.ts",
-        "./dist/navbar"
+        "./projects/navbar/src/public-api.ts"
+      ],
+      "@navbar/*": [
+        "./projects/navbar/src/*"
       ]
     },
     "target": "es2022",

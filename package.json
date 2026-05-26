@@ -4,9 +4,10 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build",
+    "build": "ng build shared && ng build navbar && ng build store && ng build basket && ng build shell",
     "watch": "ng build --watch --configuration development",
-    "run:all": "node node_modules/@angular-architects/module-federation/src/server/mf-dev-server.js"
+    "run:all": "node node_modules/@angular-architects/module-federation/src/server/mf-dev-server.js",
+    "build:dev": "ng build shared --configuration development && ng build navbar --configuration development && ng build store --configuration development && ng build basket --configuration development && ng build shell --configuration development"
   },
   "private": true,
   "dependencies": {

@@ -1,5 +1,6 @@
 import { NgModule } from '@angular/core';
-import { BrowserModule } from '@angular/platform-browser';
+import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
@@ -9,10 +10,12 @@ import { AppComponent } from './app.component';
     AppComponent
   ],
   imports: [
-    BrowserModule,
+    CommonModule,
+    RouterModule,
     AppRoutingModule
   ],
-  providers: [],
-  bootstrap: [AppComponent]
+  exports: [
+    AppComponent
+  ]
 })
 export class NavbarModule { }
