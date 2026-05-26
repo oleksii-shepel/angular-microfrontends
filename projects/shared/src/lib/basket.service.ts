@@ -1,45 +1,91 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { Product } from './product';
-import { MessageBusService } from './message-bus/message-bus.service';
-import { BASKET_ITEM_ADDED, BASKET_UPDATED, BASKET_CLEARED } from './message-bus/message-types';
+
+function getWorkerScript(): string {
+  return `
+    const state = {
+      basket: [],
+      ports: []
+    };
+
+    function broadcast() {
+      state.ports.forEach(port => {
+        try {
+          port.postMessage({ type: 'state', payload: state.basket });
+        } catch (e) {
+          // Port may be closed
+        }
+      });
+    }
+
+    self.onconnect = function(event) {
+      const port = event.ports[0];
+      state.ports.push(port);
+      port.start();
+
+      port.postMessage({ type: 'state', payload: state.basket });
+
+      port.onmessage = function(e) {
+        const msg = e.data;
+        if (msg.type === 'add') {
+          state.basket = [...state.basket, msg.payload];
+        } else if (msg.type === 'clear') {
+          state.basket = [];
+        }
+        broadcast();
+      };
+    };
+  `;
+}
 
 @Injectable({
   providedIn: 'root'
 })
 export class BasketService {
-  private products$ = new BehaviorSubject<Product[]>([]);
+  private items$ = new BehaviorSubject<Product[]>([]);
+  private worker: SharedWorker | null = null;
 
-  constructor(private messageBus: MessageBusService) {
-    this.messageBus.listen<Product>(BASKET_ITEM_ADDED).subscribe(product => {
-      if (product) {
-        const current = this.products$.value;
-        current.push(product);
-        this.products$.next(current);
-        this.messageBus.publish(BASKET_UPDATED, current);
+  constructor() {
+    if (typeof SharedWorker !== 'undefined') {
+      try {
+        const script = getWorkerScript();
+        const url = 'data:application/javascript;base64,' + btoa(script);
+        this.worker = new SharedWorker(url);
+        this.worker.port.start();
+        this.worker.port.onmessage = (event) => {
+          if (event.data?.type === 'state') {
+            this.items$.next(event.data.payload);
+          }
+        };
+      } catch {
+        // SharedWorker not available — use in-memory fallback
       }
-    });
-
-    this.messageBus.listen<void>(BASKET_CLEARED).subscribe(() => {
-      this.products$.next([]);
-      this.messageBus.publish(BASKET_UPDATED, []);
-    });
+    }
   }
 
   public getBasketItems$(): Observable<Product[]> {
-    return this.products$.asObservable();
+    return this.items$.asObservable();
   }
 
   public getBasketItems(): Product[] {
-    return this.products$.value;
+    return this.items$.value;
   }
 
   public addToBasket(product: Product): Product[] {
-    this.messageBus.publish(BASKET_ITEM_ADDED, product);
-    return this.products$.value;
+    if (this.worker) {
+      this.worker.port.postMessage({ type: 'add', payload: product });
+    } else {
+      this.items$.next([...this.items$.value, product]);
+    }
+    return this.items$.value;
   }
 
   public clearBasket(): void {
-    this.messageBus.publish(BASKET_CLEARED);
+    if (this.worker) {
+      this.worker.port.postMessage({ type: 'clear' });
+    } else {
+      this.items$.next([]);
+    }
   }
 }

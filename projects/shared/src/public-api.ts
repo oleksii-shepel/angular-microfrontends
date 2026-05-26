@@ -5,4 +5,3 @@
 export * from './lib/products.service';
 export * from './lib/product';
 export * from './lib/basket.service';
-export * from './lib/message-bus';
