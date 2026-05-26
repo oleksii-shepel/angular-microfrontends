@@ -7,13 +7,18 @@ import { Product } from './product';
 })
 export class BasketService {
   private readonly storageKey = 'mfe-basket';
+  private readonly eventName = 'mfe-basket-changed';
   private items$ = new BehaviorSubject<Product[]>(this.loadFromStorage());
 
   constructor() {
     window.addEventListener('storage', (event) => {
       if (event.key === this.storageKey) {
-        this.items$.next(this.loadFromStorage());
+        this.emitIfChanged();
       }
+    });
+
+    window.addEventListener(this.eventName, () => {
+      this.emitIfChanged();
     });
   }
 
@@ -26,8 +31,16 @@ export class BasketService {
     }
   }
 
-  private saveToStorage(items: Product[]): void {
-    localStorage.setItem(this.storageKey, JSON.stringify(items));
+  private emitIfChanged(): void {
+    const items = this.loadFromStorage();
+    const current = this.items$.value;
+    if (items.length !== current.length || JSON.stringify(items) !== JSON.stringify(current)) {
+      this.items$.next(items);
+    }
+  }
+
+  private notify(): void {
+    window.dispatchEvent(new CustomEvent(this.eventName));
   }
 
   public getBasketItems$(): Observable<Product[]> {
@@ -40,13 +53,15 @@ export class BasketService {
 
   public addToBasket(product: Product): Product[] {
     const updated = [...this.items$.value, product];
-    this.saveToStorage(updated);
+    localStorage.setItem(this.storageKey, JSON.stringify(updated));
     this.items$.next(updated);
+    this.notify();
     return updated;
   }
 
   public clearBasket(): void {
     localStorage.removeItem(this.storageKey);
     this.items$.next([]);
+    this.notify();
   }
 }
